@@ -1,0 +1,22 @@
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {dirname,resolve} from 'node:path';
+import {NodeIO} from '../snow-mountain-web/node_modules/@gltf-transform/core/dist/index.js';
+import {ALL_EXTENSIONS} from '../snow-mountain-web/node_modules/@gltf-transform/extensions/dist/index.js';
+import {dedup,resample,meshopt,textureCompress} from '../snow-mountain-web/node_modules/@gltf-transform/functions/dist/index.js';
+import {MeshoptEncoder} from '../snow-mountain-web/node_modules/meshoptimizer/index.js';
+import sharp from '../snow-mountain-web/node_modules/sharp/dist/index.mjs';
+import validator from '../snow-mountain-web/node_modules/gltf-validator/index.js';
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');await MeshoptEncoder.ready;
+const io=new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({'meshopt.encoder':MeshoptEncoder});
+const input=resolve(root,'exports/snow_mountain_world_baseline.glb'),output=resolve(root,'exports/snow_mountain_world.glb');
+const doc=await io.read(input);
+for(const mesh of doc.getRoot().listMeshes())for(const primitive of mesh.listPrimitives())if(!primitive.getMaterial()?.getNormalTexture())primitive.setAttribute('TANGENT',null);
+await doc.transform(dedup(),resample(),meshopt({encoder:MeshoptEncoder,level:'medium'}));await io.write(resolve(root,'exports/snow_mountain_world_meshopt.glb'),doc);
+await doc.transform(textureCompress({encoder:sharp,targetFormat:'webp',slots:/baseColorTexture/,quality:90,effort:60}));
+await doc.transform(textureCompress({encoder:sharp,targetFormat:'webp',slots:/normalTexture/,lossless:true,effort:60}));
+await io.write(output,doc);
+let ok=true;for(const [label,path] of [['baseline',input],['final',output]]){const report=await validator.validateBytes(new Uint8Array(fs.readFileSync(path)),{uri:path,maxIssues:100});fs.writeFileSync(resolve(root,`docs/${label}-validator.json`),JSON.stringify(report,null,2));console.log(label,fs.statSync(path).size,JSON.stringify(report.issues));if(report.issues.numErrors)ok=false;}
+if(!ok)throw new Error('Validation failed; final asset was not copied.');
+fs.copyFileSync(output,resolve(root,'snow-mountain-web/public/models/snow_mountain_world.glb'));
+fs.writeFileSync(resolve(root,'docs/export-size.json'),JSON.stringify({baseline:fs.statSync(input).size,final:fs.statSync(output).size},null,2));

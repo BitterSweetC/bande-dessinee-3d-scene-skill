@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bande Dessinée 3D Scene (Cairn Style)"
+  short_description: "Build a complete French graphic-novel 3D web scene from a prompt or video"
+  default_prompt: "Use $bande-dessinee-3d-scene to build an interactive French Bande Dessinée (Cairn-style) 3D scene from my description or reference video."
