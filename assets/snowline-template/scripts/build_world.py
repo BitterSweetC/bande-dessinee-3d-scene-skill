@@ -19,39 +19,88 @@ def noise(x,y):
     ix=np.floor(x); iy=np.floor(y); a=x-ix; b=y-iy; a=a*a*(3-2*a); b=b*b*(3-2*b)
     def h(x,y): return np.mod(np.sin(x*127.1+y*311.7+8.9)*43758.5453,1)
     return (h(ix,iy)*(1-a)+h(ix+1,iy)*a)*(1-b)+(h(ix,iy+1)*(1-a)+h(ix+1,iy+1)*a)*b
-# Heights and widths describe intentional crest profiles, not a field of random cones.
-MAIN=[[-2700,-2900,650,1100],[-2160,-2100,1200,1250],[-1630,-1390,1640,1350],[-1170,-670,1460,1150],[-780,-90,2330,1450],[-590,180,2460,1500],[-50,870,1930,1200],[410,1250,2240,1300],[960,1700,2700,1550],[1150,1910,2780,1600],[1550,2360,2350,1500],[2220,3170,1760,1800],[2910,4190,860,1900]]
-RIDGES=[(MAIN,1.0),([[-780,-90,2250,1150],[-2110,270,1710,1300],[-3450,900,1140,1550],[-4350,2010,700,1750]],.75),([[1100,1900,2670,1000],[2600,1400,1850,1450],[3690,560,1100,1750],[4840,1700,720,1900]],.7),([[-4900,-4000,880,1800],[-4650,-1600,1610,1850],[-4210,600,1710,1600],[-3340,2610,1630,1750],[-2880,3700,1320,1900]],1.1),([[3800,-3700,1250,1850],[4600,-1310,1610,1550],[4660,2910,1800,2100],[5600,5100,1300,2200]],1.1),([[-8900,4000,1400,2400],[-7100,6500,2350,2300],[-4300,7400,1850,2300],[-1200,8250,2420,2200],[1900,7950,1900,2350],[4900,8500,2640,2450],[8500,6750,1700,2600]],1),([[-10700,-4500,1550,2500],[-9800,-1200,2240,2600],[-9000,2300,1920,2250]],1),([[9500,-6000,1800,2600],[11000,-2400,2500,2450],[10400,1300,1900,2700],[10400,4900,2180,2550]],1),([[-7000,-8500,1710,2550],[-3200,-9300,2240,2500],[800,-8600,1550,2450],[4800,-9700,2000,2700]],1)]
+# Heights and widths describe monumental crest profiles, distinct lateral spurs, and deep glacial valleys.
+MAIN=[[-2700,-2900,650,1100],[-2160,-2100,1200,1250],[-1630,-1390,1640,1350],[-1170,-670,1520,1180],[-780,-90,2380,1440],[-590,180,2560,1480],[-50,870,1920,1220],[410,1250,2280,1320],[960,1700,2820,1540],[1150,1910,3060,1600],[1550,2360,2420,1520],[2220,3170,1760,1800],[2910,4190,860,1900]]
+RIDGES=[
+    (MAIN,1.0),
+    # Left Secondary Peak South Lateral Spur (divides left peak into sunlit south wall and shadowed east cirque wall)
+    ([[-560,160,2280,1120],[60,-620,1540,1280],[680,-1420,860,1460]],.84),
+    # West & North supporting spurs
+    ([[-780,-90,2250,1150],[-2110,270,1710,1300],[-3450,900,1140,1550],[-4350,2010,700,1750]],.75),
+    # Main Peak Monumental Southeast Spur (divides main peak into vast sunlit south wall vs unified blue-violet shadow wall)
+    ([[1200,1940,2780,1120],[2560,1380,1920,1460],[3690,560,1140,1750],[4840,1700,720,1900]],.78),
+    # Framing foreground & midground ridges (low saddle in front of camera so main peak is commanding)
+    ([[-4900,-4000,880,1800],[-4650,-1600,1610,1850],[-4210,600,1710,1600],[-3340,2610,1630,1750],[-2880,3700,1320,1900]],1.1),
+    ([[3800,-3700,1160,1750],[4600,-1310,1380,1460],[4660,2910,1720,2050],[5600,5100,1280,2180]],1.05),
+    # Distant horizon mountain rings
+    ([[-8900,4000,1400,2400],[-7100,6500,2350,2300],[-4300,7400,1850,2300],[-1200,8250,2420,2200],[1900,7950,1900,2350],[4900,8500,2640,2450],[8500,6750,1700,2600]],1),
+    ([[-10700,-4500,1550,2500],[-9800,-1200,2240,2600],[-9000,2300,1920,2250]],1),
+    ([[9500,-6000,1800,2600],[11000,-2400,2500,2450],[10400,1300,1900,2700],[10400,4900,2180,2550]],1),
+    ([[-7000,-8500,1710,2550],[-3200,-9300,2240,2500],[800,-8600,1550,2450],[4800,-9700,2000,2700]],1)
+]
+# Broad glacial valleys carved between the peaks and lateral spurs
+VALLEYS=[
+    [[140,660,210,640],[760,-60,250,780],[1480,-840,200,920]],
+    [[-1220,-480,165,580],[-580,-1180,195,720]]
+]
+def smax(a,b,k=55.0):
+    m=np.maximum(a,b)
+    h=np.maximum(0.0,k-np.abs(a-b))/k
+    blend=np.clip(np.minimum(a,b)/k,0.0,1.0)
+    return m+.25*k*h*h*blend
+
 def ridge_height(x,y,points,asym):
     best=np.zeros_like(x,dtype=float)
     for p,q in zip(points[:-1],points[1:]):
-        vx=q[0]-p[0]; vy=q[1]-p[1]; length=vx*vx+vy*vy
+        vx=q[0]-p[0]; vy=q[1]-p[1]; length=vx*vx+vy*vy; inv_len=1.0/math.sqrt(length)
         t=np.clip(((x-p[0])*vx+(y-p[1])*vy)/length,0,1)
-        rx=x-(p[0]+t*vx); ry=y-(p[1]+t*vy); d=np.sqrt(rx*rx+ry*ry)
-        side=(x-p[0])*vy-(y-p[1])*vx
-        width=(p[3]+t*(q[3]-p[3]))*(.96-.28*np.tanh(side/(math.sqrt(length)*175)))*asym
+        rx=x-(p[0]+t*vx); ry=y-(p[1]+t*vy)
+        # Smooth crest radius avoids 1px zero-slope cusp while preserving a sharp summit ridge
+        d=np.sqrt(rx*rx+ry*ry+20.0*20.0)-20.0
+        # Smooth angular asymmetry (never jumps across a straight ray past segment endpoints)
+        perp=(rx*vy-ry*vx)*inv_len
+        asym_mod=perp/np.sqrt(d*d+480.0*480.0)
+        width=(p[3]+t*(q[3]-p[3]))*(.95-.26*asym_mod)*asym
         height=p[2]+t*(q[2]-p[2])
-        value=height*np.maximum(0,1-(d/width)*.52)**1.8
-        best=np.maximum(best,value)
+        # Planar-concave dihedral profile for strong architectural rock walls
+        value=height*np.maximum(0,1-(d/width)*.54)**1.62
+        best=smax(best,value,45.0)
     return best
+
+def valley_cut(x,y):
+    cut=np.zeros_like(x,dtype=float)
+    for pts in VALLEYS:
+        for p,q in zip(pts[:-1],pts[1:]):
+            vx=q[0]-p[0]; vy=q[1]-p[1]; length=vx*vx+vy*vy
+            t=np.clip(((x-p[0])*vx+(y-p[1])*vy)/length,0,1)
+            rx=x-(p[0]+t*vx); ry=y-(p[1]+t*vy); d2=rx*rx+ry*ry
+            depth=p[2]+t*(q[2]-p[2]); w=p[3]+t*(q[3]-p[3])
+            cut=smax(cut,depth*np.exp(-d2/(w*w)),28.0)
+    return cut
 
 def height(x,y):
     result=np.zeros_like(x,dtype=float)
-    wx=x+270*(noise(x/780,y/860)-.5); wy=y+200*(noise(x/810+17,y/720)-.5)
-    for points,asym in RIDGES: result=np.maximum(result,ridge_height(wx,wy,points,asym))
-    # Chiseled angular buttresses and stepped geological terraces (Cairn / Bande Dessinee style).
+    # Broad, clean tectonic warping (no small high-frequency wiggles)
+    wx=x+220*(noise(x/1050,y/1150)-.5); wy=y+175*(noise(x/1100+17,y/1000)-.5)
+    for points,asym in RIDGES: result=smax(result,ridge_height(wx,wy,points,asym),65.0)
+    result=np.maximum(0,result-valley_cut(wx,wy)*np.clip(result/950,0,1))
+    # Consolidate flanks into large, monumental planar rock faces (clamped >=0 so fractional powers never produce NaN)
     u=.82*x-.57*y; v=.57*x+.82*y
-    folded=1-np.abs(2*noise((u+90*noise(x/410,y/380))/290,v/580)-1)
-    broken=1-np.abs(2*noise(u/115+17,v/230)-1)
-    strata_step=result/135+u/310+noise(x/380,y/420)*.50
-    terrace=(np.floor(strata_step)+np.clip((strata_step-np.floor(strata_step)-.24)*2.0,0,1)-strata_step)*26
-    detail=(folded**1.6-.40)*215+(broken**1.5-.38)*76+terrace
-    detail+=(noise(x/650,y/540)-.5)*175+(noise(u/58,v/105)-.5)*20
-    distance=np.sqrt(x*x+y*y);detail*=1-.78*np.clip((distance-4300)/5500,0,1)
+    w1=2*noise((u+105*noise(x/720,y/680))/540,v/860)-1
+    w2=2*noise(u/290+11,v/460)-1
+    macro_fold=np.maximum(0.0,1.0-np.sqrt(w1*w1+.04)+math.sqrt(.04))
+    sub_fold=np.maximum(0.0,1.0-np.sqrt(w2*w2+.05)+math.sqrt(.05))
+    slab_plane=noise(u/480+7,v/640)-.5
+    phase=u/290+v/440+slab_plane*1.25
+    chisel_plane=np.sin(phase)*26.0-np.sin(2.0*phase)*8.0
+    detail=(macro_fold**1.45-.38)*220+(sub_fold**1.35-.40)*82+slab_plane*140+chisel_plane
+    distance=np.sqrt(x*x+y*y);detail*=1-.82*np.clip((distance-4500)/5500,0,1)
+    # Sharp, powerful summit pyramid peaks
     cap=np.zeros_like(x,dtype=float)
-    for a,b in [(MAIN[3],MAIN[4]),(MAIN[4],MAIN[5]),(MAIN[7],MAIN[8]),(MAIN[8],MAIN[9])]:
-        vx=b[0]-a[0];vy=b[1]-a[1];tt=np.clip(((x-a[0])*vx+(y-a[1])*vy)/(vx*vx+vy*vy),0,1);dd=(x-a[0]-tt*vx)**2+(y-a[1]-tt*vy)**2;cap=np.maximum(cap,24*np.exp(-dd/(68**2)))
-    return 160+result+90*noise(x/1800,y/1500)+detail*np.clip(result/800,0,1)+cap
+    for a,b,boost in [(MAIN[3],MAIN[4],28),(MAIN[4],MAIN[5],44),(MAIN[7],MAIN[8],38),(MAIN[8],MAIN[9],68)]:
+        vx=b[0]-a[0];vy=b[1]-a[1];tt=np.clip(((x-a[0])*vx+(y-a[1])*vy)/(vx*vx+vy*vy),0,1);dd=(x-a[0]-tt*vx)**2+(y-a[1]-tt*vy)**2
+        cap=np.maximum(cap,boost*np.exp(-dd/(82**2)))
+    return 160+result+75*noise(x/2200,y/1900)+detail*np.clip(result/850,0,1)+cap
 
 def gradients(x,y): return (height(x+6,y)-height(x-6,y))/12,(height(x,y+6)-height(x,y-6))/12
 PAINT=json.loads((ROOT/'textures/paint-layout.json').read_text())
@@ -78,7 +127,7 @@ def material(name,color=None,image=None,normal_image=None):
         tex=n.new('ShaderNodeTexImage');tex.image=image;tex.extension='EXTEND'; m.node_tree.links.new(tex.outputs['Color'],p.inputs['Base Color'])
     if normal_image:
         tex=n.new('ShaderNodeTexImage');tex.image=normal_image;tex.extension='EXTEND'
-        normal=n.new('ShaderNodeNormalMap');normal.inputs['Strength'].default_value=.55
+        normal=n.new('ShaderNodeNormalMap');normal.inputs['Strength'].default_value=.35
         m.node_tree.links.new(tex.outputs['Color'],normal.inputs['Color']);m.node_tree.links.new(normal.outputs['Normal'],p.inputs['Normal'])
     return m
 
@@ -99,50 +148,68 @@ def paint_texture(name,x0,x1,y0,y1,T,detail,geometry_gx,geometry_gy,geometry_z):
         return (a[yi[:,None],xi[None,:]]*(1-fx)+a[yi[:,None],xi[None,:]+1]*fx)*(1-fy)+(a[yi[:,None]+1,xi[None,:]]*(1-fx)+a[yi[:,None]+1,xi[None,:]+1]*fx)*fy
     gx,gy=upscale(geometry_gx),upscale(geometry_gy); Z=upscale(geometry_z);slope=np.sqrt(gx*gx+gy*gy)
     u=.82*X-.57*Y; v=.57*X+.82*Y
-    # Organic tectonic domain-warping for natural couloirs and rock buttresses (seamless across all tile boundaries).
-    joint_a=noise(u/140,v/180)-.5; joint_b=noise(u/52+7,v/72)-.5
-    wx=X+155*joint_a+45*joint_b; wy=Y+155*(noise(u/180+19,v/140)-.5)+45*(noise(u/72+13,v/52)-.5)
-    edge=.22*joint_a+.08*joint_b
-    mask=np.clip((.88-slope+edge+.10*gx)*7.5+.5,0,1)
+
+    # 1. Analytical World-Space Topographic Concavity (seamless across tile borders: >0 in gullies/couloirs, <0 on convex ridges/walls)
+    z_near=.25*(height(X+120,Y)+height(X-120,Y)+height(X,Y+120)+height(X,Y-120))
+    z_wide=.25*(height(X+260,Y)+height(X-260,Y)+height(X,Y+260)+height(X,Y-260))
+    concavity=np.clip((z_near-Z)/22.0,-1.3,1.7)*.56+np.clip((z_wide-Z)/48.0,-1.3,1.7)*.44
+
+    # 2. Topographic Snow Distribution:
+    #    - Gentle slopes form coherent, unbroken snowfields (even on rounded shoulders)
+    #    - Steep planar walls & convex ribs expose vast bare rock
+    #    - Longitudinal gullies & chutes retain vertical snow ribbons
+    joint_a=noise(u/240,v/310)-.5; joint_b=noise(u/95+7,v/130)-.5
+    wx=X+140*joint_a+35*joint_b; wy=Y+140*(noise(u/310+19,v/240)-.5)+35*(noise(u/130+13,v/95)-.5)
+    concav_pos=np.maximum(concavity,0.0)
+    concav_neg=np.minimum(concavity,0.0)*np.clip((slope-.68)*2.2,0.0,1.0)
+    gentle_snow=np.clip((.85-slope+.26*concav_pos+.22*concav_neg+.08*joint_a)*6.4+.5,0,1)
+    gully_snow=np.clip((concavity-.12)*3.8+.06*joint_b,0,1)*np.clip((1.36-slope)*2.2,0,1)
+    mask=np.maximum(gentle_snow,gully_snow)
     mask=mask*mask*(3-2*mask)
+
     for role in ('rock','snow'):
         for s in PAINT[role]:
             pts=np.array(s['points']);pad=s['width']*1.35
             if pts[:,0].max()+pad<x0 or pts[:,0].min()-pad>x1 or pts[:,1].max()+pad<y0 or pts[:,1].min()-pad>y1:continue
             d=stroke_distance(wx,wy,s['points'])
-            slope_mod=np.clip(1.60-slope*.70,.25,1) if role=='snow' else np.clip(slope*.90-.1,.25,1)
-            alpha=np.clip((1-d/(s['width']*slope_mod))*3.2,0,1)
+            # Snow strokes only fill basins and moderate gullies, never steep cliff walls
+            slope_mod=np.clip(1.38-slope*.82,.18,1) if role=='snow' else np.clip(slope*.95+.1,.35,1)
+            alpha=np.clip((1-d/(s['width']*slope_mod))*2.8,0,1)
             alpha=alpha*alpha*(3-2*alpha)*s['strength']
+            if role=='snow': alpha*=np.clip((1.16-slope)*2.4,0,1)
             mask=mask*(1-alpha)+(1 if role=='snow' else 0)*alpha
-    strata=Z/48+u/230+noise(X/180,Y/210)*1.5
-    strata_wave=2*noise(u/145+noise(X/410,Y/440),Z/65+noise(X/200,Y/250)*2.0)-1
-    ledges=np.clip((.14-strata_wave)*3.0,0,1)*np.clip((1.50-slope)*1.4,0,1)
-    mask=np.maximum(mask,ledges*.42)
-    mask=np.clip((mask-.47)*5.8+.5,0,1); mask=mask*mask*(3-2*mask)
 
-    # Rich Bande Dessinee mineral rock blocks (deep slate, mid umber-slate, warm sandstone ochre).
-    warm_ochre=hexrgb('#968678')
-    mid_slate=hexrgb('#716C6D')
-    cool_slate=hexrgb('#535E73')
-    block_val=np.clip(noise(u/170+7,v/220)*.6+noise(X/340,Y/380)*.4,0,1)
-    b1=np.clip((block_val-.35)*4.8,0,1)[...,None]; b2=np.clip((block_val-.65)*4.8,0,1)[...,None]
+    # Crisp snow-to-rock boundary without any horizontal white stripe bands
+    mask=np.clip((mask-.48)*6.0+.5,0,1); mask=mask*mask*(3-2*mask)
+
+    # Rich Bande Dessinee mineral rock blocks (broad macro color zones, not small busy noise)
+    warm_ochre=hexrgb('#988675')
+    mid_slate=hexrgb('#726C6E')
+    cool_slate=hexrgb('#525E74')
+    block_val=np.clip(noise(u/320+7,v/420)*.65+noise(X/580,Y/640)*.35,0,1)
+    b1=np.clip((block_val-.36)*5.2,0,1)[...,None]; b2=np.clip((block_val-.64)*5.2,0,1)[...,None]
     rockrgb=cool_slate*(1-b1)+mid_slate*(b1-b2)+warm_ochre*b2
 
-    snow_warm=hexrgb('#F2EFE6'); snow_cool=hexrgb('#DCE6F2')
-    drift=np.clip(noise(u/180,v/260),0,1)[...,None]
-    snowrgb=snow_warm*(1-drift*.22)+snow_cool*(drift*.22)
+    snow_warm=hexrgb('#F3EFE6'); snow_cool=hexrgb('#DCE6F3')
+    drift=np.clip(noise(u/260,v/360),0,1)[...,None]
+    snowrgb=snow_warm*(1-drift*.20)+snow_cool*(drift*.20)
     rgb=rockrgb*(1-mask[...,None])+snowrgb*mask[...,None]
 
-    distance=np.sqrt(X*X+Y*Y); haze=np.clip((distance-6800)/8800,0,.58)[...,None]
-    rgb=rgb*(1-haze)+hexrgb('#A2B4CA')*haze
+    distance=np.sqrt(X*X+Y*Y); haze=np.clip((distance-7800)/8500,0,.60)[...,None]
+    rgb=rgb*(1-haze)+hexrgb('#9EB2CC')*haze
     image=image_array(name+'_color',rgb)
     if not BLOCK and abs(x0)<6500 and abs(y0)<6500: image_array(name+'_snowmask',mask,False)
     normal_image=None
     if detail>.5:
-        # Sculpted chiseled planar rock relief for dramatic normal-mapped facets on the peaks.
-        relief=(np.sin(strata*3.14159)*1.6+noise(u/68,v/98)*2.8)*(1-mask)+noise(u/95,v/180)*.55*mask
-        dy,dx=np.gradient(relief,(y1-y0)/(T-1),(x1-x0)/(T-1))
-        ts=np.stack([-dx*1.4,-dy*1.4,np.ones_like(dx)],axis=-1);ts/=np.linalg.norm(ts,axis=-1)[...,None]
+        # Compute rock and snow relief gradients separately before blending so mask transitions never create normal spikes
+        strata_macro=Z/195+u/480+noise(X/420,Y/460)*.75
+        rock_relief=np.sin(strata_macro*3.14159)*.85+noise(u/185,v/255)*1.9
+        snow_relief=noise(u/220,v/310)*.28
+        step_y=(y1-y0)/(T-1); step_x=(x1-x0)/(T-1)
+        ry,rx=np.gradient(rock_relief,step_y,step_x)
+        sy,sx=np.gradient(snow_relief,step_y,step_x)
+        dx=rx*(1-mask)+sx*mask; dy=ry*(1-mask)+sy*mask
+        ts=np.stack([-dx*1.0,-dy*1.0,np.ones_like(dx)],axis=-1);ts/=np.linalg.norm(ts,axis=-1)[...,None]
         normal_image=image_array(name+'_normal',ts*.5+.5,False)
     return image,normal_image
 

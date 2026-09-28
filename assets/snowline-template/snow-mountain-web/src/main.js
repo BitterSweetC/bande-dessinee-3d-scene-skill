@@ -27,7 +27,9 @@ $('#play').onclick=()=>{unlockAudio();controller?.play();};$('#return').onclick=
 $('#audio-toggle').onclick=e=>{e.stopPropagation();audio.toggle();syncAudioUI();};
 $('#audio-volume')?.addEventListener('input',e=>{e.stopPropagation();audio.setVolume(Number(e.target.value)/100);syncAudioUI();});
 $('#about-button').onclick=()=>{$('#about').hidden=!$('#about').hidden;};$('#close-about').onclick=()=>{$('#about').hidden=true;};
-$('#route-toggle').onclick=()=>{const map=$('#route-map');const hidden=map.toggleAttribute('hidden');$('#route-toggle').textContent=hidden?'+':'−';$('#route-toggle').setAttribute('aria-expanded',String(!hidden));};
+function setRouteCollapsed(collapsed){const map=$('#route-map'),card=$('.route-card'),btn=$('#route-toggle');if(!map||!btn)return;map.hidden=collapsed;card?.classList.toggle('is-collapsed',collapsed);btn.textContent=collapsed?'+':'−';btn.setAttribute('aria-expanded',String(!collapsed));}
+$('#route-toggle').onclick=()=>{const map=$('#route-map');setRouteCollapsed(!map.hidden);};
+const narrowMq=matchMedia('(max-width: 900px)');setRouteCollapsed(narrowMq.matches);narrowMq.addEventListener('change',e=>setRouteCollapsed(e.matches));
 $('#quality').onchange=e=>{world.quality(e.target.value);resize();};$('#retry').onclick=()=>location.reload();
 $('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{$('#fullscreen').title='Fullscreen not supported';}};
 addEventListener('keydown',e=>{unlockAudio();if(/INPUT|SELECT|BUTTON/.test(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();controller?.mode==='free'?controller?.play():controller?.pause();}if(e.code==='KeyM'){audio.toggle();syncAudioUI();}if(e.code==='Escape'){controller?.returnFree();$('#about').hidden=true;}});
@@ -35,12 +37,22 @@ document.addEventListener('visibilitychange',()=>{last=performance.now();});
 try{
  const url=new URLSearchParams(location.search).get('model')||`${import.meta.env.BASE_URL}models/snow_mountain_world.glb`;
  const gltf=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);model=gltf.scene;scene.add(model);world.prepare(model);controller=new CameraController(model,gltf.animations,renderer.domElement,state);active=controller.active;resize();await world.skyReady;
+ if(controller.splinePts?.length){
+  let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+  for(const p of controller.splinePts){if(p.x<minX)minX=p.x;if(p.x>maxX)maxX=p.x;if(p.z<minZ)minZ=p.z;if(p.z>maxZ)maxZ=p.z;}
+  const cx=(minX+maxX)*.5,cz=(minZ+maxZ)*.5,sx=78/Math.max(400,maxX-minX),sz=88/Math.max(400,maxZ-minZ);
+  controller._toMap=(x,z)=>({x:Math.max(10,Math.min(170,90+(x-cx)*sx)),y:Math.max(10,Math.min(110,58+(z-cz)*sz))});
+  const elRouteInit=$('.route-line');
+  if(elRouteInit){
+   const d=controller.splinePts.filter((_,i)=>i%20===0||i===controller.splineN).map((p,i)=>{const m=controller._toMap(p.x,p.z);return `${i?'L':'M'}${m.x.toFixed(1)} ${m.y.toFixed(1)}`;}).join(' ');
+   elRouteInit.setAttribute('d',d);
+  }
+ }
  $('#loading').hidden=true;$('#play').disabled=false;
  window.__snowline={THREE,world,controller,audio,model,get metrics(){const s=[...samples].sort((a,b)=>a-b);const g=renderer.getContext();return {interactiveMs:firstFrame-start,frames:s.length,medianMs:s[Math.floor(s.length*.5)],p95Ms:s[Math.floor(s.length*.95)],calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,memory:renderer.info.memory,viewport:[holder.clientWidth,holder.clientHeight],dpr:renderer.getPixelRatio(),gpu:g.getParameter(g.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL)};},resetMetrics(){samples=[];},render(){model.updateMatrixWorld(true);sky.position.copy(controller.active.getWorldPosition(new THREE.Vector3()));world.render(controller.active);}};
 }catch(e){console.error(e);$('#load-status').textContent='The mountain pass is snowed in. Please check the model assets and try again.';$('.loading-mark').hidden=true;$('#loading small').textContent=e.message.includes('Unexpected token')?'Model file missing or invalid format':e.message;$('#retry').hidden=false;}
 resize();const pos=new THREE.Vector3();
-const elChapter=$('#flight-chapter'),elTitle=$('#flight-title'),elCaption=$('#scene-caption'),elHeight=$('#flight-height'),elProgress=$('#progress'),elTime=$('#timecode'),elRoute=$('.route-line'),elDot=$('#map-dot'),elFps=$('#fps');
-const routeLen=elRoute?elRoute.getTotalLength():0;
+const elChapter=$('#flight-chapter'),elTitle=$('#flight-title'),elCaption=$('#scene-caption'),elHeight=$('#flight-height'),elProgress=$('#progress'),elTime=$('#timecode'),elDot=$('#map-dot'),elFps=$('#fps');
 let smoothDt=1/60,lastPhase=-1,lastSec=-1;
 renderer.setAnimationLoop(()=>{
  const now=performance.now();const ms=now-last;last=now;if(document.hidden)return;
@@ -49,14 +61,18 @@ renderer.setAnimationLoop(()=>{
  controller?.update(smoothDt);
  if(controller)active=controller.active;
  sky.position.copy(active.getWorldPosition(pos));
- audio.update(smoothDt,pos.y);
+ if(elDot&&controller?._toMap){
+  const m=controller._toMap(pos.x,pos.z);
+  elDot.setAttribute('cx',m.x.toFixed(1));elDot.setAttribute('cy',m.y.toFixed(1));
+ }
+ const flying=controller&&controller.mode!=='free';
+ const t=flying?controller.action.time:0,ratio=flying?Math.min(1,t/controller.clip.duration):0;
+ audio.update(smoothDt,pos.y,ratio);
  world.render(active);
  if(controller&&firstFrame===null)firstFrame=performance.now();
  if(firstFrame&&ms<250){samples.push(ms);if(samples.length>8000)samples.shift();}
- if(controller&&controller.mode!=='free'){
-  const t=controller.action.time,ratio=Math.min(1,t/controller.clip.duration);
+ if(flying){
   elProgress.style.width=`${(ratio*100).toFixed(2)}%`;
-  if(routeLen>0){const pt=elRoute.getPointAtLength(routeLen*ratio);elDot.setAttribute('cx',pt.x.toFixed(1));elDot.setAttribute('cy',pt.y.toFixed(1));}
   const pIdx=Math.min(4,Math.floor(ratio*5));
   if(pIdx!==lastPhase){lastPhase=pIdx;elChapter.textContent=chapters[pIdx][0];elTitle.textContent=chapters[pIdx][1];if(elCaption)elCaption.innerHTML=chapters[pIdx][2];}
   const sec=Math.floor(t);

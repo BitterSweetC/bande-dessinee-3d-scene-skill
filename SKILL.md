@@ -34,7 +34,12 @@ Before starting Stage 1 in a new or empty directory, run the bundled scaffolder 
 python3 <skill_dir>/scripts/scaffold_bande_dessinee_scene.py <target_project_dir>
 ```
 
-Then customize the ridge coordinates, color palette, camera spline, and editorial copy according to the user's prompt (and optional video) across Stages 1–6.
+Then **must** customize all of the following to match the user's specific geography/biome across Stages 1–6 (never leave snow-mountain defaults on non-alpine prompts):
+- **Geological topology & heightfield (`scripts/build_world.py`)**: Sculpt the exact landform requested (e.g., stepped canyon & hydrothermal basins, coastal sea stacks, volcanic caldera, desert mesas, or alpine massif).
+- **Mineral color palette & shader zones (`scripts/build_world.py`, `src/scene.js`)**: Match authentic regional rock/water/foliage pigments and subdued natural saturation.
+- **5-Act 3D flight spline (`src/camera-controller.js`) & real-time 3D mini-map projection (`src/main.js`)**: Design `keyPts` and `lookPts` so all 5 flight chapters (`05s, 15s, 26s, 36s, 47s`) present distinct, unobstructed vistas, and project `controller.splinePts` + live camera `(pos.x, pos.z)` directly onto the `#route-map` SVG.
+- **Scene-specific musical score & environmental soundscape (`src/audio.js`)**: Compose a procedural WebAudio soundtrack whose lead instrument, harmonic mode, and environmental sound layers match the scene's geography (never reuse the alpine snow-wind + Cmaj9 piano soundtrack on non-snow scenes).
+- **Editorial copy & literary quotes (`index.html`, `src/style.css`)**: Curate authentic published literature matching the specific landscape.
 
 ---
 
@@ -47,7 +52,7 @@ Execute all six stages in order without stopping at intermediate blockouts unles
    - Author in metric world units (e.g., `32km × 32km` total extent, hero region `±6000m`, peak elevations `1800m–2800m`).
    - Note coordinate mapping between Blender `(X, Y, Z-up)` and Three.js `(X, Y-up = Z_blender, Z = -Y_blender)`.
 2. **Hero Camera Framing**:
-   - Position the default free-roam camera so the primary peak sits at the upper-right golden ratio with a sweeping foreground ridge leading the eye from bottom-left to center-right (e.g., Three.js `position.set(8900, 3605, 2064)` looking at `target.set(200, 1750, -650)`, `FOV ~32°`).
+   - Position the default free-roam camera so the primary landmark sits at a balanced golden-ratio focal point with a sweeping foreground leading the eye into the scene (`FOV ~32°–38°`).
    - If matching a user screenshot, solve for `(radius, elevation, azimuth, target)` via spherical coordinate grid search.
 
 ### Stage 2: Procedural Blender World & Texture Baking (`scripts/build_world.py`)
@@ -78,23 +83,26 @@ Read [references/cairn-shader-and-sky.md](./references/cairn-shader-and-sky.md) 
      4. **Steep-cliff snow suppression & clean rock fallback**: Suppress residual snow on steep cliffs (`cliffMask = smoothstep(0.56, 0.78, tanSlope) * smoothstep(1060.0, 1340.0, y)`) and replace high-luma texels in `rockBase` with `fallbackRock` so white snow texels never bleed into rock shading.
      5. **Native Hardware MSAA**: Render directly via `renderer.render(scene, camera)` with `antialias: true` and `ACESFilmicToneMapping`.
 
-### Stage 5: Zero-Stutter Drone Flight, WebAudio & Literary Editorial UI
+### Stage 5: Zero-Stutter 5-Act Drone Flight, Scene-Specific WebAudio & Real-Time 3D Mini-Map
 Read [references/smooth-flight-and-audio.md](./references/smooth-flight-and-audio.md) to wire the interactive experience:
-1. **Silky-Smooth Drone Flight (`src/camera-controller.js`)**:
-   - Build two `THREE.CatmullRomCurve3` splines (`posCurve` and `lookCurve`, `centripetal`, `tension = 0.5`), pre-sample `1200` arc-length points, and damp both camera position and orientation (`quaternion.slerp`) with `1 - Math.exp(-dt * rate)`. Never use finite-difference tangent `point(t + 0.008)` for camera look-at.
-2. **Procedural WebAudio Soundscape (`src/audio.js`)**:
-   - Synthesize altitude-reactive alpine wind (pink noise + dual bandpass filters), warm harmonic drone pads, and sparse crystalline notes (`C major9 / A aeolian`), paired with a real-time `#audio-volume` slider (`0–100%`).
-3. **Editorial Typography & Authentic Literary Quotes (`index.html`, `src/style.css`)**:
-   - Top masthead in Chinese (`雪 线 · 孤 山 绘 本`, `♪ 山间回响 · 开` + volume slider, `山间手记 ↗`); main HUD and flight chapters in poetic English.
-   - Populate `山间手记` (`#about`) with **authentic literary quotes** from classic mountain literature (Nan Shepherd *The Living Mountain* 《活山》, Robert Macfarlane *Mountains of the Mind* 《心向群山》, John Muir *Our National Parks* 《我们的国家公园》) — never generic AI-written prose.
+1. **Curated 5-Act Drone Flight (`src/camera-controller.js`) & True 3D Mini-Map (`src/main.js`)**:
+   - Match `this.fpv.fov` to the cinematic telephoto range (`36°–38°`).
+   - Build two `THREE.CatmullRomCurve3` splines (`keyPts` for camera position sampled via cubic B-spline, and `lookPts` for look-at targets, `centripetal`, `tension = 0.5`).
+   - **Never** use a fixed template curve or let the camera drop into a low trench where canyon walls block half the screen. Design `keyPts` and `lookPts` around the 5 chapters (`05s, 15s, 26s, 36s, 47s`) so each chapter showcases a distinct, unobstructed landmark.
+   - **Real 3D Mini-Map Projection**: Dynamically generate `.route-line`'s SVG `d` attribute from the top-down `(x, z)` projection of `controller.splinePts`, and update `#map-dot` (`cx, cy`) every frame from the active camera's real 3D world position `active.getWorldPosition(pos)`.
+2. **Scene-Specific Procedural WebAudio Soundtrack (`src/audio.js`)**:
+   - **Never** leave the fixed alpine snow-mountain audio on non-snow scenes. Design a composed procedural WebAudio score tailored to the prompt's biome (see biome instrumentation table in [references/smooth-flight-and-audio.md](./references/smooth-flight-and-audio.md)), paired with a real-time `#audio-volume` slider (`0–100%`) and flight-progress modulation (`audio.update(dt, pos.y, ratio)`).
+3. **Editorial Typography, High-Contrast HUD & Authentic Literary Quotes (`index.html`, `src/style.css`)**:
+   - Ensure `.flight-data` and `.flight-data .overline` have bright ivory/gold color (`#f7d9b5`) and strong dark text-shadow so chapter titles remain legible over sunlit terrain.
+   - Populate `#about` with **authentic literary quotes** from classic literature matching the specific region/biome — never generic AI-written prose.
    - Frame the viewport in warm museum mat paper (`#ECE8DD`) without dark muddy radial vignettes over the sky.
 
-### Stage 6: Automated Headless GPU Verification
+### Stage 6: Automated Headless GPU & 5-Chapter Flight Verification
 1. Run `npm run build` to verify zero bundler errors.
 2. Launch headless Chromium via Playwright with hardware Metal acceleration (`args: ["--use-angle=metal"]` on macOS) at `1600×1000 @ 2x` device scale.
-3. Capture both the default hero view (`docs/final-browser.png`) and active ridge flight (`docs/flight-13.png`).
-4. Visually inspect the captured screenshots to confirm:
-   - Zero vertical white snow stripes on steep peak faces;
-   - Zero sky seams;
-   - Zero triangle-grid "caterpillar" teeth along ridges;
-   - Crisp Bande Dessinée ink lines and 60 FPS runtime performance.
+3. Capture the default hero view (`docs/final-browser.png`) AND **all 5 flight chapters** (`docs/chapter-05.png`, `docs/chapter-15.png`, `docs/chapter-26.png`, `docs/chapter-36.png`, `docs/chapter-47.png` via `tests/chapters.mjs`).
+4. Visually inspect all captured screenshots with `view_file` to confirm:
+   - All 5 flight chapters show distinct, progressive, unobstructed compositions matching their chapter titles (zero foreground wall/spur blocking the view, zero static camera);
+   - The `#route-map` mini-map dashed curve and dot accurately reflect the true 3D `(x, z)` trajectory;
+   - Zero vertical white snow stripes on steep peak faces, zero sky seams, and zero triangle-grid "caterpillar" teeth along ridges;
+   - Crisp Bande Dessinée ink lines, legible HUD text, and 60 FPS runtime performance.
